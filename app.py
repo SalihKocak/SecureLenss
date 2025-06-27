@@ -2309,4 +2309,4 @@ if __name__ == '__main__':
     logger.info(f"Debug mode: {debug}")
     logger.info(f"AI Engine Status: {ai_engine.get_status()}")
     
-    app.run(host='0.0.0.0', port=port, debug=debug) 
+    app.run(host='0.0.0.0', port=port, debug=debug)
