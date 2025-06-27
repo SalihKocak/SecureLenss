@@ -97,9 +97,8 @@ try:
         serverSelectionTimeoutMS=5000,
         connectTimeoutMS=5000,
         socketTimeoutMS=5000,
-        # Disable SSL verification for Render compatibility (demo only)
-        tlsAllowInvalidCertificates=True,
-        tlsInsecure=True
+        # SSL settings for Render compatibility (demo only)
+        tlsAllowInvalidCertificates=True
     )
     
     # Simple connection test
