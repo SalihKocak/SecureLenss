@@ -90,13 +90,16 @@ try:
         logger.error("❌ MONGO_URI environment variable not set!")
         raise ValueError("MongoDB connection string is required. Please set MONGO_URI environment variable.")
     
-    # MongoDB Atlas connection - simple and working
+    # MongoDB Atlas connection - Render compatible SSL settings
     client = MongoClient(
         MONGO_URI,
-        # Simple timeout settings that work
+        # Render-compatible timeout and SSL settings
         serverSelectionTimeoutMS=5000,
         connectTimeoutMS=5000,
-        socketTimeoutMS=5000
+        socketTimeoutMS=5000,
+        # Disable SSL verification for Render compatibility (demo only)
+        tlsAllowInvalidCertificates=True,
+        tlsInsecure=True
     )
     
     # Simple connection test
@@ -418,6 +421,22 @@ def health_check():
         'timestamp': datetime.now().isoformat(),
         'database': 'connected' if db is not None else 'disconnected',
         'ai_status': ai_engine.get_status()
+    })
+
+@app.route('/debug', methods=['GET'])
+def debug_page():
+    """Simple debug endpoint"""
+    return jsonify({
+        'status': 'SecureLens is running!',
+        'timestamp': datetime.now().isoformat(),
+        'port': os.environ.get('PORT', 'unknown'),
+        'templates_available': os.path.exists('templates/index.html'),
+        'database_status': 'connected' if collection is not None else 'disconnected',
+        'environment': {
+            'DEBUG': os.environ.get('DEBUG', 'not set'),
+            'FLASK_ENV': os.environ.get('FLASK_ENV', 'not set'),
+            'MONGO_URI_set': 'Yes' if os.environ.get('MONGO_URI') else 'No'
+        }
     })
 
 @app.route('/ai-status', methods=['GET'])
