@@ -3,6 +3,7 @@ from flask_cors import CORS
 from pymongo import MongoClient
 from datetime import datetime, timedelta
 import os
+import ssl
 from modules.url_analyzer import URLAnalyzer
 from modules.email_analyzer import EmailAnalyzer
 from modules.file_analyzer import FileAnalyzer
@@ -90,16 +91,72 @@ try:
         logger.error("❌ MONGO_URI environment variable not set!")
         raise ValueError("MongoDB connection string is required. Please set MONGO_URI environment variable.")
     
-    # MongoDB Atlas connection - Render compatible SSL settings
-    client = MongoClient(
-        MONGO_URI,
-        # Render-compatible timeout and SSL settings
-        serverSelectionTimeoutMS=5000,
-        connectTimeoutMS=5000,
-        socketTimeoutMS=5000,
-        # SSL settings for Render compatibility (demo only)
-        tlsAllowInvalidCertificates=True
-    )
+    # MongoDB Atlas connection - Multiple fallback approaches for Render
+    connection_configs = [
+        # Config 1: Minimal SSL with certificate bypass
+        {
+            'serverSelectionTimeoutMS': 5000,
+            'connectTimeoutMS': 5000,
+            'socketTimeoutMS': 5000,
+            'ssl': True,
+            'ssl_cert_reqs': ssl.CERT_NONE,
+            'tlsAllowInvalidCertificates': True
+        },
+        # Config 2: Force TLS 1.2
+        {
+            'serverSelectionTimeoutMS': 5000,
+            'connectTimeoutMS': 5000,
+            'socketTimeoutMS': 5000,
+            'tls': True,
+            'tlsAllowInvalidCertificates': True,
+            'retryWrites': True
+        },
+        # Config 3: Disable SSL completely (if Atlas allows)
+        {
+            'serverSelectionTimeoutMS': 5000,
+            'connectTimeoutMS': 5000,
+            'socketTimeoutMS': 5000,
+            'ssl': False
+        },
+        # Config 4: Try with modified connection string (ssl=false)
+        {
+            'serverSelectionTimeoutMS': 5000,
+            'connectTimeoutMS': 5000,
+            'socketTimeoutMS': 5000
+        }
+    ]
+    
+    client = None
+    for i, config in enumerate(connection_configs):
+        try:
+            logger.info(f"🔗 Trying MongoDB connection config {i+1}...")
+            
+            # Special handling for config 4 - modify connection string
+            if i == 3:  # Config 4 (0-indexed)
+                # Add ssl=false to connection string if not present
+                modified_uri = MONGO_URI
+                if 'ssl=' not in modified_uri.lower():
+                    separator = '&' if '?' in modified_uri else '?'
+                    modified_uri = f"{modified_uri}{separator}ssl=false"
+                logger.info(f"Using modified URI with ssl=false")
+                client = MongoClient(modified_uri, **config)
+            else:
+                client = MongoClient(MONGO_URI, **config)
+            
+            # Test the connection
+            client.admin.command('ping')
+            logger.info(f"✅ MongoDB connection successful with config {i+1}")
+            break
+        except Exception as e:
+            logger.warning(f"❌ Config {i+1} failed: {e}")
+            if client:
+                client.close()
+            client = None
+            continue
+    
+    if not client:
+        logger.error("❌ All MongoDB connection configs failed")
+        raise Exception("Unable to connect to MongoDB with any configuration")
     
     # Simple connection test
     try:
