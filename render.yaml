@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: securelens
+    env: python
+    plan: free
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      python setup_nltk.py
+    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app --workers 2 --timeout 180 --max-requests 1200 --preload --access-logfile - --error-logfile -
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.7
+      - key: MONGO_URI
+        fromSecret: MONGO_URI
+      - key: DEBUG
+        value: false
+      - key: PORT
+        value: 10000
+      - key: PYTHONUNBUFFERED
+        value: 1
+      - key: FLASK_ENV
+        value: production
