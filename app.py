@@ -28,11 +28,15 @@ try:
         os.environ['PYTHONIOENCODING'] = 'utf-8'
         
         # Set default encoding for file operations
-        import _locale
-        _locale._getdefaultlocale = (lambda *args: ['en_US', 'utf8'])
+        locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
         
 except Exception as e:
     print(f"Encoding setup warning: {e}")
+    # Fallback to system default
+    try:
+        locale.setlocale(locale.LC_ALL, '')
+    except:
+        pass
 
 # Set default encoding for the entire application
 import json
@@ -514,12 +518,14 @@ def analyze_url():
             }
         
         # Risk skorunun geçerli olduğundan emin ol
-        if analysis_result.get('risk_score') is None or str(analysis_result.get('risk_score')).lower() in ['none', 'null', '']:
+        risk_score = analysis_result.get('risk_score')
+        if risk_score is None or (isinstance(risk_score, str) and risk_score.lower() in ['none', 'null', '']):
             analysis_result['risk_score'] = 50.0
             analysis_result['warnings'] = analysis_result.get('warnings', []) + ['Risk skoru hesaplanamadı, varsayılan değer atandı']
         
         # Risk level'ın geçerli olduğundan emin ol  
-        if not analysis_result.get('risk_level') or analysis_result.get('risk_level').lower() in ['bilinmeyen', 'unknown', 'none']:
+        risk_level = analysis_result.get('risk_level')
+        if not risk_level or not isinstance(risk_level, str) or risk_level.lower() in ['bilinmeyen', 'unknown', 'none']:
             score = float(analysis_result.get('risk_score', 50))
             if score >= 70:
                 analysis_result['risk_level'] = 'Yüksek Risk'
@@ -626,12 +632,14 @@ def analyze_email():
             }
         
         # Risk skorunun geçerli olduğundan emin ol
-        if result.get('risk_score') is None or str(result.get('risk_score')).lower() in ['none', 'null', '']:
+        risk_score = result.get('risk_score')
+        if risk_score is None or (isinstance(risk_score, str) and risk_score.lower() in ['none', 'null', '']):
             result['risk_score'] = 50.0
             result['warnings'] = result.get('warnings', []) + ['Risk skoru hesaplanamadı, varsayılan değer atandı']
         
         # Risk level'ın geçerli olduğundan emin ol  
-        if not result.get('risk_level') or result.get('risk_level').lower() in ['bilinmeyen', 'unknown', 'none']:
+        risk_level = result.get('risk_level')
+        if not risk_level or not isinstance(risk_level, str) or risk_level.lower() in ['bilinmeyen', 'unknown', 'none']:
             score = float(result.get('risk_score', 50))
             if score >= 70:
                 result['risk_level'] = 'Yüksek Risk'
@@ -1165,7 +1173,7 @@ def get_dashboard_data():
                 logger.warning(f"Invalid date range value: {date_range_param}, defaulting to 30 days")
         
         # Build query filters
-        query_filter = {
+        query_filter: dict = {
             'timestamp': {'$gte': start_date, '$lte': end_date}
         }
         
@@ -1174,24 +1182,32 @@ def get_dashboard_data():
             
         if risk_level != 'all':
             if risk_level == 'safe':
-                query_filter['$or'] = [
-                    {'result.risk_level': {'$in': ['Güvenli', 'Çok Güvenli', 'Minimal Risk']}},
-                    {'result.risk_score': {'$lt': 30}}
+                query_filter['$and'] = [
+                    {'$or': [
+                        {'result.risk_level': {'$in': ['Güvenli', 'Çok Güvenli', 'Minimal Risk']}},
+                        {'result.risk_score': {'$lt': 30}}
+                    ]}
                 ]
             elif risk_level == 'low':
-                query_filter['$or'] = [
-                    {'result.risk_level': {'$in': ['Düşük Risk', 'Düşük-Orta Risk']}},
-                    {'result.risk_score': {'$gte': 30, '$lt': 50}}
+                query_filter['$and'] = [
+                    {'$or': [
+                        {'result.risk_level': {'$in': ['Düşük Risk', 'Düşük-Orta Risk']}},
+                        {'result.risk_score': {'$gte': 30, '$lt': 50}}
+                    ]}
                 ]
             elif risk_level == 'medium':
-                query_filter['$or'] = [
-                    {'result.risk_level': {'$in': ['Orta Risk', 'Orta-Yüksek Risk']}},
-                    {'result.risk_score': {'$gte': 50, '$lt': 75}}
+                query_filter['$and'] = [
+                    {'$or': [
+                        {'result.risk_level': {'$in': ['Orta Risk', 'Orta-Yüksek Risk']}},
+                        {'result.risk_score': {'$gte': 50, '$lt': 75}}
+                    ]}
                 ]
             elif risk_level == 'high':
-                query_filter['$or'] = [
-                    {'result.risk_level': {'$in': ['Yüksek Risk', 'Kritik Risk', 'Tehlikeli']}},
-                    {'result.risk_score': {'$gte': 75}}
+                query_filter['$and'] = [
+                    {'$or': [
+                        {'result.risk_level': {'$in': ['Yüksek Risk', 'Kritik Risk', 'Tehlikeli']}},
+                        {'result.risk_score': {'$gte': 75}}
+                    ]}
                 ]
         
         # Get filtered data
