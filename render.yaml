@@ -2,45 +2,22 @@ services:
   - type: web
     name: securelens
     env: python
-    plan: free
-    buildCommand: |
-      # Upgrade pip and install dependencies
-      python -m pip install --upgrade pip
-      pip install -r requirements.txt
-      
-      # Download NLTK data
-      python setup_nltk.py
-      
-      # Create cache directories for models
-      mkdir -p ~/.cache/torch/hub/
-      mkdir -p ~/.cache/huggingface/
-      
-      # Pre-download models during build
-      python -c "from transformers import AutoTokenizer; AutoTokenizer.from_pretrained('bert-base-uncased')"
-      
-      # Verify installations
-      python -c "import nltk; import torch; import transformers; print('✅ All dependencies installed')"
-    startCommand: |
-      gunicorn app:app \
-        --bind 0.0.0.0:$PORT \
-        --workers 2 \
-        --threads 4 \
-        --timeout 180 \
-        --keep-alive 5 \
-        --max-requests 1200 \
-        --max-requests-jitter 100 \
-        --preload \
-        --access-logfile - \
-        --error-logfile - \
-        --log-level info
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt && python setup_nltk.py
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 180 --log-level debug --max-requests 1000 --max-requests-jitter 50 --preload
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.7
-      - key: MONGO_URI
-        fromSecret: MONGO_URI
-      - key: DEBUG
-        value: false
-      - key: PYTHONUNBUFFERED
-        value: 1
       - key: FLASK_ENV
         value: production
+      - key: DEBUG
+        value: true
+      - key: PYTHONUNBUFFERED
+        value: true
+      - key: WEB_CONCURRENCY
+        value: 1
+    autoDeploy: false
+    healthCheckPath: /
+    disk:
+      name: tmp
+      mountPath: /tmp
+      sizeGB: 0.5
