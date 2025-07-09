@@ -14,6 +14,7 @@ import sys
 import torch
 import time
 import hashlib
+import gc
 
 # Unicode encoding ayarları
 import locale
