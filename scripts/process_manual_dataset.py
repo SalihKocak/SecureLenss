@@ -155,18 +155,19 @@ def create_sample_dataset_if_missing():
         feature_vector = extract_filename_features(filename, is_malicious=False)
         features.append(feature_vector)
     
-    # DataFrame oluştur
+    # Feature names listesini oluştur
     feature_names = [
         'length', 'dot_count', 'digit_ratio', 'uppercase_ratio',
         'suspicious_ext', 'double_ext', 'entropy', 'vowel_ratio',
         'has_numbers', 'has_spaces', 'has_special_chars', 'has_system_name'
     ]
-    
+
     # PE-like binary features ekle
     for i in range(12):
         feature_names.append(f'pe_feature_{i}')
-    
-    df = pd.DataFrame(features, columns=feature_names)
+
+    # DataFrame oluştur
+    df = pd.DataFrame(data=features, columns=pd.Index(feature_names))
     df['filename'] = filenames
     df['label'] = labels
     
