@@ -4,10 +4,35 @@ services:
     env: python
     plan: free
     buildCommand: |
-      pip install --upgrade pip
+      # Upgrade pip and install dependencies
+      python -m pip install --upgrade pip
       pip install -r requirements.txt
+      
+      # Download NLTK data
       python setup_nltk.py
-    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app --workers 2 --timeout 180 --max-requests 1200 --preload --access-logfile - --error-logfile -
+      
+      # Create cache directories for models
+      mkdir -p ~/.cache/torch/hub/
+      mkdir -p ~/.cache/huggingface/
+      
+      # Pre-download models during build
+      python -c "from transformers import AutoTokenizer; AutoTokenizer.from_pretrained('bert-base-uncased')"
+      
+      # Verify installations
+      python -c "import nltk; import torch; import transformers; print('✅ All dependencies installed')"
+    startCommand: |
+      gunicorn app:app \
+        --bind 0.0.0.0:$PORT \
+        --workers 2 \
+        --threads 4 \
+        --timeout 180 \
+        --keep-alive 5 \
+        --max-requests 1200 \
+        --max-requests-jitter 100 \
+        --preload \
+        --access-logfile - \
+        --error-logfile - \
+        --log-level info
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.7
@@ -15,8 +40,6 @@ services:
         fromSecret: MONGO_URI
       - key: DEBUG
         value: false
-      - key: PORT
-        value: 10000
       - key: PYTHONUNBUFFERED
         value: 1
       - key: FLASK_ENV
