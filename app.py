@@ -92,57 +92,21 @@ try:
         logger.error("❌ No MongoDB connection string available!")
         raise ValueError("MongoDB connection string is required.")
     
-    # MongoDB Atlas connection - Simplified configuration
-    connection_configs = [
-        # Config 1: Basic connection with standard timeouts
-        {
-            'serverSelectionTimeoutMS': 30000,
-            'connectTimeoutMS': 30000,
-            'socketTimeoutMS': 30000,
-        },
-        # Config 2: Direct connection bypass
-        {
-            'serverSelectionTimeoutMS': 30000,
-            'connectTimeoutMS': 30000,
-            'socketTimeoutMS': 30000,
-            'directConnection': False,
-            'retryWrites': True
-        }
-    ]
-    
-    client = None
-    for i, config in enumerate(connection_configs):
-        try:
-            logger.info(f"🔗 Trying MongoDB connection config {i+1}...")
-            
-            # Use original MongoDB URI for all configs
-            client = MongoClient(MONGO_URI, **config)
-            
-            # Test the connection
-            client.admin.command('ping')
-            logger.info(f"✅ MongoDB connection successful with config {i+1}")
-            break
-        except Exception as e:
-            logger.warning(f"❌ Config {i+1} failed: {e}")
-            if client:
-                try:
-                    client.close()
-                except:
-                    pass
-            client = None
-            continue
-    
-    if not client:
-        logger.error("❌ All MongoDB connection configs failed")
-        raise Exception("Unable to connect to MongoDB with any configuration")
-    
-    # Simple connection test
+    # MongoDB Atlas connection with SSL configuration
     try:
-        logger.info("🔗 Testing MongoDB connection...")
+        logger.info("🔗 Attempting MongoDB connection...")
+        client = MongoClient(
+            MONGO_URI,
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000,
+            ssl=True,
+            ssl_cert_reqs=ssl.CERT_NONE  # For testing only - update in production
+        )
         
-        # Test ping command
-        result = client.admin.command('ping')
-        logger.info(f"✅ MongoDB ping successful: {result}")
+        # Test the connection
+        client.admin.command('ping')
+        logger.info("✅ MongoDB connection successful")
         
         # Setup database and collection
         db = client['securelens']
@@ -2280,8 +2244,9 @@ def internal_error(error):
     }), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('DEBUG', 'False').lower() == 'true'  # Production'da debug=False
+    # Get port from environment variable with fallback to 10000
+    port = int(os.environ.get('PORT', 10000))
+    debug = os.environ.get('DEBUG', 'False').lower() == 'true'
     
     logger.info(f"Starting SecureLens Hybrid AI server on port {port}")
     logger.info(f"Debug mode: {debug}")
