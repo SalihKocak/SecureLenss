@@ -29,9 +29,10 @@ python-dateutil>=2.8.0
 python-dotenv>=1.0.0
 
 # AI/ML - CPU Only versions for smaller size
---find-links https://download.pytorch.org/whl/cpu/torch_stable.html
-torch==2.1.0+cpu
-transformers>=4.35.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.1.2+cpu
+transformers==4.35.0
+sentence-transformers==2.2.2
 
 # Image processing
 Pillow>=10.0.0
