@@ -3,7 +3,29 @@ from datetime import datetime
 
 class RecommendationSystem:
     def __init__(self):
-        self.daily_tips = [
+        """Initialize recommendation system"""
+        self._recommendations = [
+            {
+                'title': 'URL Güvenliği',
+                'description': 'HTTPS kullanımını kontrol edin ve bilinmeyen bağlantılara dikkat edin.',
+                'category': 'url',
+                'priority': 'high'
+            },
+            {
+                'title': 'Email Güvenliği',
+                'description': 'Şüpheli ekler ve phishing linklerine karşı dikkatli olun.',
+                'category': 'email',
+                'priority': 'high'
+            },
+            {
+                'title': 'Dosya Güvenliği',
+                'description': 'Bilinmeyen kaynaklardan gelen dosyaları açmadan önce tarayın.',
+                'category': 'file',
+                'priority': 'high'
+            }
+        ]
+        
+        self._daily_tips = [
             {
                 'title': '🔒 Güçlü Şifre Kullanın',
                 'description': 'En az 12 karakter, büyük-küçük harf, sayı ve özel karakter içeren şifreler kullanın.',
@@ -13,101 +35,51 @@ class RecommendationSystem:
                 'title': '🔄 Yazılımları Güncel Tutun',
                 'description': 'İşletim sistemi ve uygulamalarınızı düzenli olarak güncelleyin.',
                 'category': 'update'
-            },
-            {
-                'title': '📧 E-posta Bağlantılarına Dikkat',
-                'description': 'Tanımadığınız gönderenlerden gelen e-postalardaki linklere tıklamadan önce düşünün.',
-                'category': 'email'
-            },
-            {
-                'title': '🛡️ Antivirüs Kullanın',
-                'description': 'Güncel bir antivirüs programı kullanın ve düzenli tarama yapın.',
-                'category': 'antivirus'
-            },
-            {
-                'title': '💾 Yedekleme Yapın',
-                'description': 'Önemli dosyalarınızın düzenli yedeğini alın.',
-                'category': 'backup'
-            },
-            {
-                'title': '🌐 HTTPS Kullanın',
-                'description': 'Web sitelerinde "https://" ile başlayan güvenli bağlantıları tercih edin.',
-                'category': 'web'
-            },
-            {
-                'title': '📱 İki Faktörlü Doğrulama',
-                'description': 'Mümkün olduğunca 2FA (Two-Factor Authentication) kullanın.',
-                'category': 'authentication'
-            },
-            {
-                'title': '💳 Online Alışveriş Güvenliği',
-                'description': 'Sadece güvenilir ve tanınmış sitelerden alışveriş yapın.',
-                'category': 'shopping'
-            },
-            {
-                'title': '📞 Telefon Dolandırıcılığı',
-                'description': 'Bilinmeyen numaralardan gelen şüpheli aramalara dikkat edin.',
-                'category': 'phone'
-            },
-            {
-                'title': '🔐 Sosyal Medya Gizliliği',
-                'description': 'Sosyal medya hesaplarınızın gizlilik ayarlarını kontrol edin.',
-                'category': 'social'
-            },
-            {
-                'title': '💻 USB Güvenliği',
-                'description': 'Bilinmeyen USB cihazları bilgisayarınıza takmayın.',
-                'category': 'hardware'
-            },
-            {
-                'title': '📊 Kişisel Bilgi Paylaşımı',
-                'description': 'Kişisel bilgilerinizi gereksiz yere paylaşmaktan kaçının.',
-                'category': 'privacy'
             }
         ]
         
-        self.security_alerts = [
+        self._security_alerts = [
             {
                 'type': 'warning',
                 'title': '⚠️ Phishing Saldırı Artışı',
-                'message': 'Son dönemde phishing e-postalarında artış gözlemlendi. E-postalarınızı dikkatli kontrol edin.',
+                'message': 'Son dönemde phishing e-postalarında artış gözlemlendi.',
                 'level': 'medium'
-            },
-            {
-                'type': 'info',
-                'title': '🔄 Güvenlik Güncellemesi',
-                'message': 'Popüler uygulamalarda kritik güvenlik güncellemeleri yayınlandı.',
-                'level': 'low'
-            },
-            {
-                'type': 'danger',
-                'title': '🚨 Yeni Malware Tehdidi',
-                'message': 'Yeni bir malware türü tespit edildi. Antivirüs tanımlarınızı güncelleyin.',
-                'level': 'high'
             }
         ]
         
-        self.cyber_crime_stats = [
+        self._cyber_crime_stats = [
             {
                 'statistic': 'Phishing saldırıları 2023\'te %65 arttı',
                 'description': 'E-posta tabanlı saldırılar en yaygın siber tehdit türü olmaya devam ediyor.'
-            },
-            {
-                'statistic': 'Zayıf şifreler nedeniyle hesapların %81\'i risk altında',
-                'description': 'Güçlü ve benzersiz şifreler kullanmak kritik önem taşıyor.'
-            },
-            {
-                'statistic': 'Fidye yazılımı saldırıları her 11 saniyede bir gerçekleşiyor',
-                'description': 'Düzenli yedekleme ve güvenlik önlemleri hayati önem taşıyor.'
             }
         ]
-        
-        self.threat_levels = {
-            'phishing': 'Yüksek',
-            'malware': 'Yüksek', 
-            'identity_theft': 'Orta',
-            'financial_fraud': 'Yüksek',
-            'social_engineering': 'Orta'
+
+    @property
+    def recommendations(self):
+        """Get recommendations list"""
+        return self._recommendations
+
+    @property
+    def daily_tips(self):
+        """Get daily security tips"""
+        return self._daily_tips
+
+    @property
+    def security_alerts(self):
+        """Get security alerts"""
+        return self._security_alerts
+
+    @property
+    def cyber_crime_stats(self):
+        """Get cyber crime statistics"""
+        return self._cyber_crime_stats
+
+    def get_recommendations(self):
+        """Return security recommendations"""
+        return {
+            'recommendations': self.recommendations,
+            'total': len(self.recommendations),
+            'timestamp': datetime.now().isoformat()
         }
 
     def get_daily_recommendations(self):
