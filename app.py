@@ -92,17 +92,10 @@ try:
         logger.error("❌ No MongoDB connection string available!")
         raise ValueError("MongoDB connection string is required.")
     
-    # MongoDB Atlas connection with SSL configuration
+    # MongoDB Atlas connection with modern configuration
     try:
         logger.info("🔗 Attempting MongoDB connection...")
-        client = MongoClient(
-            MONGO_URI,
-            serverSelectionTimeoutMS=30000,
-            connectTimeoutMS=30000,
-            socketTimeoutMS=30000,
-            ssl=True,
-            ssl_cert_reqs=ssl.CERT_NONE  # For testing only - update in production
-        )
+        client = MongoClient(MONGO_URI)
         
         # Test the connection
         client.admin.command('ping')
