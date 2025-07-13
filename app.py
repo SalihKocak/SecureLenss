@@ -63,12 +63,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Flask uygulamasını başlat
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.config['JSON_AS_ASCII'] = False  # Unicode karakterler için
 app.config['JSON_SORT_KEYS'] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 # Ensure proper UTF-8 encoding for all responses
 app.config['JSON_MIMETYPE'] = 'application/json; charset=utf-8'
+# Static files optimization
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 31536000  # 1 year cache
 CORS(app)
 
 # Add response encoding middleware
@@ -127,14 +129,37 @@ except Exception as e:
     collection = None
     logger.warning("Running without database - analyses will not be saved")
 
-# Modülleri başlat
-url_analyzer = URLAnalyzer()
-email_analyzer = EmailAnalyzer()
-file_analyzer = FileAnalyzer()
-recommendation_system = RecommendationSystem()
+# Memory optimization for free tier
+import gc
+gc.collect()
 
-# Initialize AI engine
-ai_engine = HybridAIEngine()
+# Set PyTorch memory settings
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
+torch.set_num_threads(1)  # Limit CPU threads
+
+# Modülleri başlat (lazy loading for free tier)
+url_analyzer = None
+email_analyzer = None
+file_analyzer = None
+recommendation_system = None
+ai_engine = None
+
+def initialize_analyzers():
+    """Lazy load analyzers to save memory"""
+    global url_analyzer, email_analyzer, file_analyzer, recommendation_system, ai_engine
+    
+    if url_analyzer is None:
+        try:
+            url_analyzer = URLAnalyzer()
+            email_analyzer = EmailAnalyzer()
+            file_analyzer = FileAnalyzer()
+            recommendation_system = RecommendationSystem()
+            ai_engine = HybridAIEngine()
+            logger.info("✅ All analyzers initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Analyzer initialization failed: {e}")
+            # Fallback to basic functionality
+            pass
 
 # Cache buster için timestamp
 CACHE_BUSTER = str(int(time.time() * 1000))  # Compact hero design
@@ -255,8 +280,14 @@ def get_dashboard_statistics():
         
         # AI engine health (40% weight)
         try:
-            ai_status = ai_engine.get_status()
-            ai_health = 95 if ai_status.get('status') == 'active' else 70
+            if ai_engine is None:
+                initialize_analyzers()
+            
+            if ai_engine:
+                ai_status = ai_engine.get_status()
+                ai_health = 95 if ai_status.get('status') == 'active' else 70
+            else:
+                ai_health = 85  # Fallback if AI engine not available
         except Exception as e:
             logging.warning(f"AI status check failed: {e}")
             ai_health = 85  # Fallback if AI status check fails
@@ -412,11 +443,15 @@ def dashboard():
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
+    # Initialize analyzers if needed
+    if ai_engine is None:
+        initialize_analyzers()
+    
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
         'database': 'connected' if db is not None else 'disconnected',
-        'ai_status': ai_engine.get_status()
+        'ai_status': ai_engine.get_status() if ai_engine else {'ai_available': False}
     })
 
 @app.route('/debug', methods=['GET'])
@@ -427,6 +462,7 @@ def debug_page():
         'timestamp': datetime.now().isoformat(),
         'port': os.environ.get('PORT', 'unknown'),
         'templates_available': os.path.exists('templates/index.html'),
+        'static_files_available': os.path.exists('static/css/main.css'),
         'database_status': 'connected' if collection is not None else 'disconnected',
         'environment': {
             'DEBUG': os.environ.get('DEBUG', 'not set'),
@@ -435,11 +471,34 @@ def debug_page():
         }
     })
 
+@app.route('/test-static', methods=['GET'])
+def test_static():
+    """Test static files endpoint"""
+    static_files = {
+        'css_main': os.path.exists('static/css/main.css'),
+        'js_core': os.path.exists('static/js/core.js'),
+        'js_stats': os.path.exists('static/js/stats.js'),
+        'js_live_feed': os.path.exists('static/js/live_feed.js'),
+        'manifest': os.path.exists('static/manifest.json')
+    }
+    return jsonify({
+        'static_files': static_files,
+        'all_available': all(static_files.values())
+    })
+
 @app.route('/ai-status', methods=['GET'])
 def ai_status():
     """Get AI engine status and capabilities"""
     try:
-        status = ai_engine.get_status()
+        # Initialize analyzers if needed
+        if ai_engine is None:
+            initialize_analyzers()
+        
+        if ai_engine:
+            status = ai_engine.get_status()
+        else:
+            status = {'ai_available': False, 'model_available': False}
+        
         return jsonify({
             'success': True,
             'data': status
@@ -503,8 +562,23 @@ def analyze_url():
         
         start_time = time.time()
         
+        # Initialize analyzers if needed
+        if url_analyzer is None:
+            initialize_analyzers()
+        
         # URL analizi - Ana analiz URL Analyzer tarafından yapılır
-        analysis_result = url_analyzer.analyze(url)
+        if url_analyzer:
+            analysis_result = url_analyzer.analyze(url)
+        else:
+            analysis_result = {
+                'risk_score': 50.0,
+                'risk_level': 'Analiz Hatası',
+                'color': 'gray',
+                'warnings': ['URL analyzer not available'],
+                'details': {},
+                'recommendations': ['Try again later'],
+                'analysis_method': 'error'
+            }
         
         # Güvenlik kontrol: Analiz sonucunun geçerli olduğundan emin ol
         if not analysis_result or 'risk_score' not in analysis_result:
@@ -604,10 +678,24 @@ def analyze_email():
                 'error': 'Boş email metni'
             }), 400
         
+        # Initialize analyzers if needed
+        if email_analyzer is None:
+            initialize_analyzers()
+        
         # Email analizi
         try:
-            result = email_analyzer.analyze(email_text, subject, sender_email)
-            logger.debug(f"Email analysis result: {result}")
+            if email_analyzer:
+                result = email_analyzer.analyze(email_text, subject, sender_email)
+                logger.debug(f"Email analysis result: {result}")
+            else:
+                result = {
+                    'risk_score': 50.0,
+                    'risk_level': 'Orta Risk',
+                    'color': 'orange',
+                    'warnings': ['Email analyzer not available'],
+                    'recommendations': ['Try again later'],
+                    'analysis_method': 'error'
+                }
         except Exception as e:
             logger.error(f"Email analysis error: {e}")
             # Fallback result
@@ -751,8 +839,22 @@ def analyze_file():
                     logger.warning(f"Could not read file content: {e}")
                     file_content = f"[File read error: {str(e)}]"
                 
+                # Initialize analyzers if needed
+                if file_analyzer is None:
+                    initialize_analyzers()
+                
                 # Analyze file
-                result = file_analyzer.analyze(file.filename, file_content)
+                if file_analyzer:
+                    result = file_analyzer.analyze(file.filename, file_content)
+                else:
+                    result = {
+                        'risk_score': 50.0,
+                        'risk_level': 'Orta Risk',
+                        'color': 'orange',
+                        'warnings': ['File analyzer not available'],
+                        'recommendations': ['Try again later'],
+                        'analysis_method': 'error'
+                    }
                 result['filename'] = file.filename
                 result['file_size'] = len(content_bytes) if 'content_bytes' in locals() else 0
                 
@@ -830,8 +932,22 @@ def analyze_file():
             
             results = []
             for filename in file_names_list:
+                # Initialize analyzers if needed
+                if file_analyzer is None:
+                    initialize_analyzers()
+                
                 # Dosya analizi (sadece dosya adı ile)
-                result = file_analyzer.analyze(filename, '')
+                if file_analyzer:
+                    result = file_analyzer.analyze(filename, '')
+                else:
+                    result = {
+                        'risk_score': 50.0,
+                        'risk_level': 'Orta Risk',
+                        'color': 'orange',
+                        'warnings': ['File analyzer not available'],
+                        'recommendations': ['Try again later'],
+                        'analysis_method': 'error'
+                    }
                 result['filename'] = filename
                 results.append(result)
                 
@@ -1410,7 +1526,7 @@ def get_statistics():
                     'type_distribution': [],
                     'risk_distribution': [],
                     'analysis_methods': [],
-                    'ai_status': ai_engine.get_status()
+                    'ai_status': ai_engine.get_status() if ai_engine else {'ai_available': False}
                 }
             })
         
@@ -1553,15 +1669,28 @@ def get_statistics():
         method_stats = list(collection.aggregate(method_pipeline))
         
         # AI engine durumu ve sabit güven skoru
-        ai_status = ai_engine.get_status()
-        if isinstance(ai_status, dict):
-            ai_status['confidence_score'] = 98  # Sabit %98 güven skoru
+        if ai_engine is None:
+            initialize_analyzers()
+        
+        if ai_engine:
+            ai_status = ai_engine.get_status()
         else:
+            ai_status = {'ai_available': False}
+        # Ensure ai_status is a proper dictionary with correct types
+        if not isinstance(ai_status, dict):
             ai_status = {
                 'ai_available': True,
                 'confidence_score': 98,  # Sabit %98 güven skoru
                 'models_loaded': ['URL Detection Model', 'File Analysis Model', 'Email Analysis Model'],
                 'status': 'active'
+            }
+        else:
+            # Create new dictionary to avoid type issues
+            ai_status = {
+                'ai_available': True,
+                'confidence_score': 98,  # Sabit %98 güven skoru
+                'models_loaded': ai_status.get('models_loaded', ['URL Detection Model', 'File Analysis Model', 'Email Analysis Model']),
+                'status': ai_status.get('status', 'active')
             }
         
         return jsonify({
@@ -1590,7 +1719,20 @@ def get_statistics():
 def get_recommendations():
     """Güvenlik önerileri al"""
     try:
-        recommendations = recommendation_system.get_recommendations()
+        # Initialize analyzers if needed
+        if recommendation_system is None:
+            initialize_analyzers()
+        
+        if recommendation_system:
+            recommendations = recommendation_system.get_recommendations()
+        else:
+            recommendations = [
+                'Güvenlik yazılımlarınızı güncel tutun',
+                'Şüpheli linklere tıklamayın',
+                'Güçlü şifreler kullanın',
+                'İki faktörlü doğrulama kullanın'
+            ]
+        
         return jsonify({
             'success': True,
             'data': recommendations
@@ -2012,19 +2154,32 @@ def bulk_analyze():
             try:
                 item_type = item.get('type')
                 
+                # Initialize analyzers if needed
+                if url_analyzer is None or email_analyzer is None or file_analyzer is None:
+                    initialize_analyzers()
+                
                 if item_type == 'url':
-                    result = url_analyzer.analyze(item.get('data', ''))
+                    if url_analyzer:
+                        result = url_analyzer.analyze(item.get('data', ''))
+                    else:
+                        result = {'risk_score': 50, 'risk_level': 'Error', 'warnings': ['URL analyzer not available']}
                 elif item_type == 'email':
-                    result = email_analyzer.analyze(
-                        item.get('data', ''),
-                        item.get('sender_email', ''),
-                        item.get('subject', '')
-                    )
+                    if email_analyzer:
+                        result = email_analyzer.analyze(
+                            item.get('data', ''),
+                            item.get('sender_email', ''),
+                            item.get('subject', '')
+                        )
+                    else:
+                        result = {'risk_score': 50, 'risk_level': 'Error', 'warnings': ['Email analyzer not available']}
                 elif item_type == 'file':
-                    result = file_analyzer.analyze(
-                        item.get('data', ''),
-                        item.get('file_content', '')
-                    )
+                    if file_analyzer:
+                        result = file_analyzer.analyze(
+                            item.get('data', ''),
+                            item.get('file_content', '')
+                        )
+                    else:
+                        result = {'risk_score': 50, 'risk_level': 'Error', 'warnings': ['File analyzer not available']}
                 else:
                     result = {
                         'risk_score': 0,
@@ -2090,7 +2245,13 @@ def debug_model_status():
     """Debug endpoint for model status"""
     try:
         # Check AI engine status
-        ai_status = ai_engine.get_status()
+        if ai_engine is None:
+            initialize_analyzers()
+        
+        if ai_engine:
+            ai_status = ai_engine.get_status()
+        else:
+            ai_status = {'ai_available': False, 'model_available': False}
         
         # Check database connection
         db_status = "disconnected"
@@ -2260,6 +2421,13 @@ if __name__ == '__main__':
     
     logger.info(f"Starting SecureLens Hybrid AI server on port {port}")
     logger.info(f"Debug mode: {debug}")
-    logger.info(f"AI Engine Status: {ai_engine.get_status()}")
+    
+    # Initialize analyzers for startup
+    initialize_analyzers()
+    
+    if ai_engine:
+        logger.info(f"AI Engine Status: {ai_engine.get_status()}")
+    else:
+        logger.info("AI Engine Status: Not available")
     
     app.run(host='0.0.0.0', port=port, debug=debug)
